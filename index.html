@@ -1,0 +1,195 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Songbook</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Lora:ital,wght@0,400;0,600;1,400&display=swap" rel="stylesheet">
+<style>
+:root{--bg:#15181d;--panel:#1b1f26;--line:#2a303a;--text:#dcd8cc;--dim:#8d939e;--chord:#9cc5b4;--hi:#232932;color-scheme:dark}
+*{box-sizing:border-box}
+html,body{height:100%;margin:0}
+body{background:var(--bg);color:var(--text);font:17px/1.7 Lora,Georgia,serif;display:grid;grid-template-columns:300px 1fr}
+button,input,textarea{font:inherit;color:inherit}
+button{background:var(--panel);border:1px solid var(--line);border-radius:6px;padding:.3rem .8rem;cursor:pointer}
+button:hover{background:var(--hi)}
+:focus-visible{outline:2px solid var(--chord);outline-offset:2px}
+input,textarea{background:var(--panel);border:1px solid var(--line);border-radius:6px;padding:.5rem .7rem;width:100%}
+aside{border-right:1px solid var(--line);display:flex;flex-direction:column;height:100vh;height:100dvh;min-height:0}
+aside header{padding:1rem;display:grid;gap:.6rem}
+h1{font-size:1.3rem;margin:0;font-weight:600}
+.row{display:flex;gap:.5rem;align-items:center;flex-wrap:wrap}
+#list{overflow:auto;flex:1;padding:0 .5rem 1rem}
+#list button{display:block;width:100%;text-align:left;background:none;border:0;border-radius:6px;padding:.45rem .6rem;line-height:1.35}
+#list button:hover,#list button.on{background:var(--hi)}
+#list small{color:var(--dim);display:block;font-style:italic}
+main{overflow:auto;height:100vh;height:100dvh;padding:1.5rem clamp(1rem,5vw,3.5rem) 4rem}
+.empty{color:var(--dim);font-style:italic;margin-top:20vh;text-align:center}
+.bar{position:sticky;top:-1.5rem;background:var(--bg);padding:.6rem 0;margin-bottom:1rem;border-bottom:1px solid var(--line);z-index:2}
+.bar .sp{flex:1}
+h2{margin:.2rem 0 0;font-size:1.8rem;font-weight:600;line-height:1.25}
+.by{color:var(--dim);font-style:italic;margin:0 0 1.5rem}
+pre{font:inherit;white-space:pre-wrap;word-break:break-word;margin:0;max-width:72ch;font-variant-ligatures:none}
+pre .c{color:var(--chord);font-weight:600}
+pre .s{color:var(--dim);font-style:italic}
+.num{min-width:2.5rem;text-align:center;color:var(--dim)}
+#st{color:var(--dim);font-size:.85rem}
+form{display:grid;gap:.8rem;max-width:72ch}
+textarea{min-height:55vh;font-family:"Courier New",monospace;font-size:.95rem;line-height:1.5;white-space:pre}
+dialog{background:var(--panel);color:var(--text);border:1px solid var(--line);border-radius:10px;max-width:420px;width:92%}
+dialog::backdrop{background:#000a}
+dialog label{display:block;font-size:.9rem;color:var(--dim);margin-top:.6rem}
+.back{display:none}
+@media(max-width:760px){
+ body{grid-template-columns:1fr}
+ aside{border:0}
+ main{display:none}
+ body.open aside{display:none}
+ body.open main{display:block}
+ .back{display:inline-block}
+}
+@media print{aside,.bar{display:none}body{display:block;background:#fff;color:#000}pre .c{color:#000}}
+</style>
+</head>
+<body>
+<aside>
+ <header>
+  <h1>Songbook</h1>
+  <input id="q" type="search" placeholder="Search songs" aria-label="Search songs">
+  <div class="row"><button id="new">New song</button><button id="sync">Save to GitHub</button><button id="cfg" aria-label="Settings">Settings</button></div>
+  <span id="st"></span>
+ </header>
+ <nav id="list"></nav>
+</aside>
+<main id="main"></main>
+
+<dialog id="dlg">
+ <form method="dialog" id="cf">
+  <h2 style="font-size:1.2rem">GitHub settings</h2>
+  <p style="color:var(--dim);font-size:.9rem;margin:.3rem 0">Needed only to save songs from the browser. Stored on this device only. Use a fine-grained token limited to this repo with Contents read/write.</p>
+  <label>Username<input name="owner" autocomplete="off"></label>
+  <label>Repository<input name="repo" autocomplete="off"></label>
+  <label>Branch<input name="branch" placeholder="main" autocomplete="off"></label>
+  <label>Token<input name="token" type="password" autocomplete="off"></label>
+  <div class="row" style="margin-top:1rem"><button value="ok" id="cfok">Save settings</button><button type="button" id="bk">Download backup</button><button value="x">Close</button></div>
+ </form>
+</dialog>
+
+<script>
+const $=s=>document.querySelector(s);
+const LS='songbook.songs',DIRTY='songbook.dirty',CFG='songbook.cfg';
+const N=['C','C#','D','D#','E','F','F#','G','G#','A','A#','B'],F=['C','Db','D','Eb','E','F','Gb','G','Ab','A','Bb','B'];
+const CH=/^[A-G][#b]?(?:maj|min|dim|aug|sus|add|m|M|\+|°|\d|[#b()-])*(?:\/[A-G][#b]?)?$/;
+let songs=[],cur=null,shift=0;
+
+const esc=s=>s.replace(/[&<>]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[c]));
+const cfg=()=>{try{return JSON.parse(localStorage.getItem(CFG))||{}}catch{return{}}};
+const status=t=>{$('#st').textContent=t};
+const uid=()=>Date.now().toString(36)+Math.random().toString(36).slice(2,6);
+
+function tr(tok,n){
+ return tok.replace(/[A-G][#b]?/g,m=>{
+  let i=N.indexOf(m); if(i<0)i=F.indexOf(m); if(i<0)return m;
+  return (m.includes('b')?F:N)[((i+n)%12+12)%12];
+ });
+}
+function render(text,n){
+ return text.split('\n').map(l=>{
+  const t=l.trim().split(/\s+/);
+  const isChordLine=l.trim()&&t.every(x=>CH.test(x)||/^[|x\d()\/-]+$/.test(x))&&t.some(x=>CH.test(x));
+  if(isChordLine){
+   const out=l.replace(/(\S+)(\s*)/g,(m,a,s)=>{
+    if(!CH.test(a))return m;
+    const b=tr(a,n);
+    return b+(s?' '.repeat(Math.max(1,s.length-(b.length-a.length))):'');
+   });
+   return '<span class="c">'+esc(out)+'</span>';
+  }
+  return esc(l).replace(/\[([^\]]+)\]/g,(m,c)=>CH.test(c)?'<span class="c">['+tr(c,n)+']</span>':'<span class="s">'+m+'</span>');
+ }).join('\n');
+}
+
+function persist(){
+ localStorage.setItem(LS,JSON.stringify(songs));
+ localStorage.setItem(DIRTY,'1');
+ status('Unsaved changes. Press "Save to GitHub".');
+}
+function list(){
+ const q=$('#q').value.toLowerCase();
+ const items=songs.filter(s=>(s.title+' '+s.artist).toLowerCase().includes(q)).sort((a,b)=>a.title.localeCompare(b.title));
+ $('#list').innerHTML=items.map(s=>`<button data-id="${s.id}" class="${cur&&cur.id===s.id?'on':''}">${esc(s.title||'Untitled')}<small>${esc(s.artist||'')}</small></button>`).join('')||'<p class="empty" style="margin-top:2rem">No songs yet.</p>';
+}
+function show(id){
+ cur=songs.find(s=>s.id===id);shift=0;document.body.classList.add('open');view();list();
+}
+function view(){
+ if(!cur){$('#main').innerHTML='<p class="empty">Pick a song, or add one.</p>';return}
+ $('#main').innerHTML=`<div class="bar row"><button class="back" id="back">Back</button><button id="dn" aria-label="Transpose down">&minus;1</button><span class="num" id="sh"></span><button id="up" aria-label="Transpose up">+1</button><button id="rs">Reset</button><span class="sp"></span><button id="ed">Edit</button></div>
+ <h2>${esc(cur.title)}</h2><p class="by">${esc(cur.artist||'')}</p><pre id="body"></pre>`;
+ paint();
+ $('#back').onclick=()=>{document.body.classList.remove('open')};
+ $('#dn').onclick=()=>{shift--;paint()};$('#up').onclick=()=>{shift++;paint()};$('#rs').onclick=()=>{shift=0;paint()};
+ $('#ed').onclick=()=>edit(cur);
+}
+function paint(){
+ const n=((shift%12)+12)%12;
+ $('#sh').textContent=shift===0?'Original':(shift>0?'+':'')+shift;
+ $('#body').innerHTML=render(cur.text||'',shift);
+}
+function edit(s){
+ const isNew=!s;s=s||{id:uid(),title:'',artist:'',text:''};
+ document.body.classList.add('open');
+ $('#main').innerHTML=`<div class="bar row"><button class="back" id="back">Back</button><span class="sp"></span>${isNew?'':'<button id="del">Delete</button>'}</div>
+ <form id="f"><input id="t" placeholder="Title" required><input id="a" placeholder="Artist"><div class="row"><label for="file" style="color:var(--dim)">Load from a text file:</label><input id="file" type="file" accept=".txt,.pro,.cho,.crd,text/plain" style="width:auto"></div>
+ <textarea id="x" spellcheck="false" placeholder="Paste lyrics with chords. Chords can sit on their own line above the lyrics, or inline like [Am]."></textarea>
+ <div class="row"><button type="submit">Save song</button><button type="button" id="cn">Cancel</button></div></form>`;
+ $('#t').value=s.title;$('#a').value=s.artist;$('#x').value=s.text;
+ $('#back').onclick=$('#cn').onclick=()=>{cur&&!isNew?view():(cur=null,view(),document.body.classList.remove('open'))};
+ $('#file').onchange=async e=>{const f=e.target.files[0];if(!f)return;$('#x').value=await f.text();if(!$('#t').value)$('#t').value=f.name.replace(/\.[^.]+$/,'')};
+ if($('#del'))$('#del').onclick=()=>{if(confirm('Delete "'+s.title+'"?')){songs=songs.filter(x=>x.id!==s.id);cur=null;persist();list();view();document.body.classList.remove('open')}};
+ $('#f').onsubmit=e=>{
+  e.preventDefault();
+  s.title=$('#t').value.trim();s.artist=$('#a').value.trim();s.text=$('#x').value;
+  if(isNew)songs.push(s);
+  persist();cur=s;shift=0;list();view();
+ };
+}
+async function sync(){
+ const c=cfg();
+ if(!c.token||!c.owner||!c.repo){$('#dlg').showModal();return}
+ const url=`https://api.github.com/repos/${c.owner}/${c.repo}/contents/songs.json`,br=c.branch||'main';
+ const h={Authorization:'Bearer '+c.token,Accept:'application/vnd.github+json'};
+ status('Saving...');
+ try{
+  let sha;const g=await fetch(`${url}?ref=${br}`,{headers:h});
+  if(g.ok)sha=(await g.json()).sha;
+  const body={message:'Update songs',branch:br,content:btoa(unescape(encodeURIComponent(JSON.stringify({songs},null,1))))};
+  if(sha)body.sha=sha;
+  const p=await fetch(url,{method:'PUT',headers:h,body:JSON.stringify(body)});
+  if(p.ok){localStorage.removeItem(DIRTY);status('Saved. The live site may take a minute to update.')}
+  else status('GitHub refused ('+p.status+'). Check your settings.');
+ }catch{status('Could not reach GitHub.')}
+}
+async function load(){
+ if(localStorage.getItem(DIRTY)){
+  try{songs=JSON.parse(localStorage.getItem(LS))||[];status('Showing unsaved changes from this device.')}catch{}
+ }else{
+  try{const r=await fetch('songs.json?t='+Date.now());songs=r.ok?(await r.json()).songs||[]:[]}catch{songs=[]}
+  localStorage.setItem(LS,JSON.stringify(songs));
+ }
+ list();view();
+}
+
+$('#list').onclick=e=>{const b=e.target.closest('button');if(b)show(b.dataset.id)};
+$('#q').oninput=list;
+$('#new').onclick=()=>edit();
+$('#sync').onclick=sync;
+$('#cfg').onclick=()=>{const c=cfg(),f=$('#cf');for(const k of['owner','repo','branch','token'])f.elements[k].value=c[k]||'';$('#dlg').showModal()};
+$('#cf').onsubmit=e=>{if(e.submitter&&e.submitter.value==='ok'){const f=$('#cf'),c={};for(const k of['owner','repo','branch','token'])c[k]=f.elements[k].value.trim();localStorage.setItem(CFG,JSON.stringify(c))}};
+$('#bk').onclick=()=>{const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([JSON.stringify({songs},null,1)],{type:'application/json'}));a.download='songs.json';a.click()};
+load();
+</script>
+</body>
+</html>
