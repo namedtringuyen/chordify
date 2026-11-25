@@ -126,7 +126,7 @@ function show(id){
 }
 function view(){
  if(!cur){$('#main').innerHTML='<p class="empty">is your guitar in tune yet?</p>';return}
- $('#main').innerHTML=`<div class="bar row"><button class="back" id="back">Back</button><button id="dn" aria-label="Transpose down">&minus;1</button><span class="num" id="sh">Keys</span><button id="up" aria-label="Transpose up">+1</button><button id="rs">Reset</button><span class="sp"></span><button id="ed">Edit</button></div>
+ $('#main').innerHTML=`<div class="bar row"><button class="back" id="back">Back</button><button id="dn" aria-label="Transpose down">&minus;1</button><span class="num" id="sh"></span><button id="up" aria-label="Transpose up">+1</button><button id="rs">Reset</button><span class="sp"></span><button id="ed">Edit</button></div>
  <h2>${esc(cur.title)}</h2><p class="by">${esc(cur.artist||'')}</p><pre id="body"></pre>`;
  paint();
  $('#back').onclick=()=>{document.body.classList.remove('open')};
