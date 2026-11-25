@@ -135,7 +135,7 @@ function view(){
 }
 function paint(){
  const n=((shift%12)+12)%12;
- $('#sh').textContent=shift===0?'Transpose':(shift>0?'+':'')+shift;
+ $('#sh').textContent=shift===0?'Keys':(shift>0?'+':'')+shift;
  $('#body').innerHTML=render(cur.text||'',shift);
 }
 function edit(s){
