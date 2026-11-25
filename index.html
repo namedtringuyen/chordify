@@ -58,7 +58,7 @@ dialog label{display:block;font-size:.9rem;color:var(--dim);margin-top:.6rem}
  <header>
   <h1>Songbook</h1>
   <input id="q" type="search" placeholder="Search songs" aria-label="Search songs">
-  <div class="row"><button id="new">New song</button><button id="sync">Save to GitHub</button><button id="cfg" aria-label="Settings">Settings</button></div>
+  <div class="row"><button id="new">New song</button><button id="sync">Sync</button><button id="cfg" aria-label="Settings">Settings</button></div>
   <span id="st"></span>
  </header>
  <nav id="list"></nav>
@@ -114,7 +114,7 @@ function render(text,n){
 function persist(){
  localStorage.setItem(LS,JSON.stringify(songs));
  localStorage.setItem(DIRTY,'1');
- status('Unsaved changes. Press "Save to GitHub".');
+ status('Unsaved changes. Press "Sync".');
 }
 function list(){
  const q=$('#q').value.toLowerCase();
@@ -135,7 +135,7 @@ function view(){
 }
 function paint(){
  const n=((shift%12)+12)%12;
- $('#sh').textContent=shift===0?'Original':(shift>0?'+':'')+shift;
+ $('#sh').textContent=shift===0?'Transpose':(shift>0?'+':'')+shift;
  $('#body').innerHTML=render(cur.text||'',shift);
 }
 function edit(s){
